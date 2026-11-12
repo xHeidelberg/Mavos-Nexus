@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Familjen Grotesk", "Hanken Grotesk", system-ui, sans-serif;
+
+  --color-ink: #1b2430;
+  --color-muted: #5d6877;
+  --color-paper: #f3f5f7;
+  --color-line: #d8dee6;
+  --color-ledger: #14674a;
+  --color-ledger-dark: #0e4d37;
+  --color-ledger-soft: #e3f1ea;
+  --color-caution: #8a5600;
+  --color-caution-soft: #fbf0d9;
+  --color-danger: #b42318;
+  --color-danger-soft: #fde8e6;
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
+button, input, select, textarea { font: inherit; }
+input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+
+/* Receipt-style rule used on the POS ticket */
+.rule { border-top: 1.5px dashed var(--color-line); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* Printing a receipt prints only the receipt */
+@media print {
+  body * { visibility: hidden; }
+  #receipt, #receipt * { visibility: visible; }
+  #receipt { position: absolute; left: 0; top: 0; width: 80mm; padding: 4mm; }
+}
