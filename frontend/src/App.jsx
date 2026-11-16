@@ -7,6 +7,8 @@ import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
 import Login from './pages/Login';
+import Messages from './pages/Messages';
+import Payroll from './pages/Payroll';
 import Pos from './pages/Pos';
 import Products from './pages/Products';
 import Sales from './pages/Sales';
@@ -45,6 +47,8 @@ export default function App() {
         <Route path="pos" element={<Pos />} />
         <Route path="sales" element={<Sales />} />
         <Route path="stock" element={<Stock />} />
+        <Route path="messages" element={<Messages />} />
+        <Route path="payroll" element={<Role roles={['admin']}><Payroll /></Role>} />
         <Route path="transfers" element={<Role roles={staffUp}><Transfers /></Role>} />
         <Route path="products" element={<Role roles={['admin']}><Products /></Role>} />
         <Route path="expenses" element={<Role roles={staffUp}><Expenses /></Role>} />

@@ -102,6 +102,7 @@ button:not(:disabled), [role=tab] { touch-action: manipulation; }
 /* Printing a receipt prints only the receipt */
 @media print {
   body * { visibility: hidden; }
-  #receipt, #receipt * { visibility: visible; }
+  #receipt, #receipt *, #payslip, #payslip * { visibility: visible; }
   #receipt { position: absolute; left: 0; top: 0; width: 80mm; padding: 4mm; color: #000; }
+  #payslip { position: absolute; left: 0; top: 0; width: 100%; padding: 10mm; color: #000; background: #fff; }
 }

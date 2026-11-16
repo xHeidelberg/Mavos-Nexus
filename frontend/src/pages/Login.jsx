@@ -10,7 +10,7 @@ export default function Login() {
   const { busy, error, submit } = useSubmit(async () => {
     const r = await login(f.username.trim(), f.password);
     nav(r.must_change_password ? '/change-password' : '/', { replace: true });
-  }, null);
+  }, null, false);
   if (user) return <Navigate to="/" replace />;
 
   return (

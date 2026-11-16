@@ -125,7 +125,7 @@ function SaleDetail({ id, onClose, onChanged }) {
 function VoidForm({ sale, onCancel, onDone }) {
   const [reason, setReason] = useState('');
   const [ap, setAp] = useState(emptyApproval);
-  const { busy, error, submit } = useSubmit(async () => { await api.post(`/sales/${sale.id}/void`, { reason, ...ap }); onDone(); }, 'Sale voided');
+  const { busy, error, submit } = useSubmit(async () => { await api.post(`/sales/${sale.id}/void`, { reason, ...ap }); onDone(); }, 'Sale voided', { title: 'Void this sale?', message: `Sale ${sale.receipt_no} (${peso(sale.total)}) will be voided and its items returned to stock.`, confirmLabel: 'Void sale', danger: true });
   return (
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>
       <p className="text-sm">Voiding returns the items to stock. Total {peso(sale.total)}.</p>
@@ -162,7 +162,7 @@ function ExchangeForm({ sale, onCancel, onDone }) {
       ...ap,
     });
     onDone();
-  });
+  }, 'Exchange completed', { title: 'Complete this exchange?', message: 'Stock is updated and the customer pays any difference. There are no refunds.', confirmLabel: 'Complete exchange' });
 
   return (
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>

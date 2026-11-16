@@ -32,7 +32,7 @@ function ExpenseForm({ admin, onClose, onDone }) {
   const { busy, error, submit } = useSubmit(async () => {
     await api.post('/expenses', { category: f.category, description: f.description || undefined, amount: Number(f.amount), expense_date: f.expense_date, ...(admin && f.branch_id ? { branch_id: Number(f.branch_id) } : {}) });
     onDone();
-  });
+  }, 'Expense added', { title: 'Add this expense?', message: `${peso(f.amount || 0)} for ${f.category || 'this expense'} will be subtracted from your tubo.`, confirmLabel: 'Add expense' });
   return (
     <Modal title="Add expense" onClose={onClose}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>

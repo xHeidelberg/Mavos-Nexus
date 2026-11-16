@@ -35,7 +35,7 @@ export default function FeedbackHost() {
       {ask && (
         <Modal title={ask.title || 'Are you sure?'} onClose={() => close(false)}
           footer={<><Button variant="secondary" onClick={() => close(false)}>Cancel</Button>
-            <Button variant={ask.danger ? 'danger' : 'primary'} onClick={() => close(true)}>{ask.confirmLabel || 'Confirm'}</Button></>}>
+            <Button autoFocus variant={ask.danger ? 'danger' : 'primary'} onClick={() => close(true)}>{ask.confirmLabel || 'Confirm'}</Button></>}>
           <p className="text-sm text-muted">{ask.message}</p>
         </Modal>
       )}

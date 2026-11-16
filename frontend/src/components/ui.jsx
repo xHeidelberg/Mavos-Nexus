@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon from './Icon';
-import { toast } from '../lib/toast';
+import { confirm, toast } from '../lib/toast';
 
 export const cx = (...a) => a.filter(Boolean).join(' ');
 
@@ -58,15 +58,23 @@ export function Segmented({ options, value, onChange, label, className }) {
   );
 }
 
+const modalStack = [];
 export function Modal({ title, onClose, children, wide, footer }) {
   const ref = useRef(null);
+  const token = useRef({});
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose?.();
+    modalStack.push(token.current);
+    const onKey = (e) => e.key === 'Escape' && modalStack[modalStack.length - 1] === token.current && onClose?.();
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    ref.current?.focus();
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+    if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+      const i = modalStack.indexOf(token.current);
+      if (i >= 0) modalStack.splice(i, 1);
+    };
   }, [onClose]);
   return (
     <div className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-4"
@@ -191,11 +199,19 @@ export function ApproverFields({ value, onChange }) {
 }
 export const emptyApproval = { approver_username: '', approver_pin: '' };
 
-/** Tracks busy + error around an async submit and shows a toast when it succeeds (pass null for none). */
-export function useSubmit(fn, success = 'Done') {
+/**
+ * Wraps a create / update / delete. It always asks "are you sure?" first, then runs, then shows a toast.
+ *   success: toast text (null = none)    confirmOpts: object | string (message) | false (no dialog, e.g. sign-in)
+ */
+export function useSubmit(fn, success = 'Done', confirmOpts) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const submit = async (...args) => {
+    if (confirmOpts !== false) {
+      const base = { title: 'Save this?', message: 'Please confirm you want to save this.', confirmLabel: 'Save' };
+      const ask = typeof confirmOpts === 'string' ? { ...base, message: confirmOpts } : { ...base, ...(confirmOpts || {}) };
+      if (!(await confirm(ask))) return undefined;
+    }
     setBusy(true); setError(null);
     try {
       const r = await fn(...args);

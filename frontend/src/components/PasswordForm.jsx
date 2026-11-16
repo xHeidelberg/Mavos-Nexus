@@ -11,7 +11,7 @@ export default function PasswordForm({ onDone }) {
     setOk(true);
     setF({ current_password: '', new_password: '', confirm: '' });
     onDone?.();
-  }, 'Password changed');
+  }, 'Password changed', { title: 'Change your password?', message: 'You’ll use the new password the next time you sign in.', confirmLabel: 'Change password' });
   return (
     <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4">
       <Field label="Current password" hint="After a reset, this is the temporary password you were given."><Input type="password" autoComplete="current-password" value={f.current_password} onChange={(e) => setF({ ...f, current_password: e.target.value })} /></Field>

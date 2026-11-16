@@ -5,6 +5,7 @@ import { Badge, Button, ErrorNote, Field, Input, Modal, Select, Spinner, cx } fr
 import { ApiError, api } from '../lib/api';
 import { dateTime, peso, uuid } from '../lib/format';
 import { cacheProducts, cachedProducts, enqueue } from '../lib/offlineQueue';
+import { confirm } from '../lib/toast';
 
 const REPLACE_KEY = 'mavos_replace_sale';
 
@@ -99,6 +100,12 @@ export default function Pos() {
   const reset = () => { setCart([]); setTendered(''); setGcashRef(''); setCustomer(null); setReplace(null); setError(null); setCartOpen(false); };
 
   const complete = async () => {
+    const ok = await confirm({
+      title: 'Complete this sale?',
+      message: `${cart.reduce((s, l) => s + l.qty, 0)} item(s) · ${peso(total)} · ${payment === 'cash' ? `change ${peso(Math.max(change, 0))}` : 'paid by GCash'}`,
+      confirmLabel: 'Complete sale',
+    });
+    if (!ok) return;
     setBusy(true); setError(null);
     const payload = {
       client_uuid: uuid(),
@@ -286,6 +293,7 @@ function CustomerPicker({ onClose, onPick }) {
   }, [q]);
   const create = async () => {
     setErr(null);
+    if (!(await confirm({ title: 'Add this customer?', message: `${form.name}${form.contact_number ? ` · ${form.contact_number}` : ''} will be saved so they can earn loyalty points.`, confirmLabel: 'Add customer' }))) return;
     try { onPick(await api.post('/customers', { name: form.name, contact_number: form.contact_number || undefined })); } catch (e) { setErr(e); }
   };
   return (

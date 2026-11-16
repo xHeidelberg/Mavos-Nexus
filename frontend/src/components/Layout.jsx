@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { flushQueue, queueSize } from '../lib/offlineQueue';
 import { useTheme } from '../lib/theme';
@@ -11,8 +12,10 @@ const NAV = [
   { to: '/pos', label: 'Point of sale', short: 'Sell', icon: 'pos', roles: ['admin', 'staff', 'sales'], main: true },
   { to: '/sales', label: 'Sales history', short: 'Sales', icon: 'sales', roles: ['admin', 'staff', 'sales'], main: true },
   { to: '/stock', label: 'Stock', icon: 'stock', roles: ['admin', 'staff', 'sales'], main: true },
+  { to: '/messages', label: 'Messages', short: 'Chat', icon: 'message', roles: ['admin', 'staff', 'sales'], main: true },
   { to: '/transfers', label: 'Transfers', icon: 'transfers', roles: ['admin', 'staff'] },
   { to: '/products', label: 'Products', icon: 'products', roles: ['admin'] },
+  { to: '/payroll', label: 'Payroll', icon: 'payroll', roles: ['admin'] },
   { to: '/expenses', label: 'Expenses', icon: 'expenses', roles: ['admin', 'staff'] },
   { to: '/users', label: 'Users', icon: 'users', roles: ['admin'] },
   { to: '/setup', label: 'Setup', icon: 'setup', roles: ['admin'] },
@@ -59,6 +62,23 @@ function NetStatus() {
   );
 }
 
+function useUnread() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.get('/messages/unread').then((r) => alive && setN(r.unread)).catch(() => {});
+    load();
+    const t = setInterval(load, 20000);
+    window.addEventListener('mavos-unread-refresh', load);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('mavos-unread-refresh', load); };
+  }, []);
+  return n;
+}
+
+function Dot({ n }) {
+  return n > 0 ? <span className="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-on-danger">{n > 9 ? '9+' : n}</span> : null;
+}
+
 function ThemeButton({ className }) {
   const [theme, toggle] = useTheme();
   return (
@@ -74,6 +94,7 @@ export default function Layout() {
   const nav = useNavigate();
   const loc = useLocation();
   const [more, setMore] = useState(false);
+  const unread = useUnread();
   useEffect(() => setMore(false), [loc.pathname]);
 
   const items = NAV.filter((n) => n.roles.includes(user.role));
@@ -97,7 +118,7 @@ export default function Layout() {
             <NavLink key={n.to} to={n.to} title={n.label}
               className={({ isActive }) => cx('group flex h-11 items-center justify-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors lg:justify-start',
                 isActive ? 'bg-ledger text-on-ledger shadow-sm' : 'text-ink/80 hover:bg-line/60 hover:text-ink')}>
-              <Icon name={n.icon} className="size-5 shrink-0" />
+              <span className="relative"><Icon name={n.icon} className="size-5 shrink-0" />{n.to === '/messages' && <Dot n={unread} />}</span>
               <span className="hidden lg:inline">{n.label}</span>
             </NavLink>
           ))}
@@ -131,7 +152,7 @@ export default function Layout() {
         {tabs.map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => cx('flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold', isActive ? 'text-ledger' : 'text-muted')}>
             {({ isActive }) => (<>
-              <span className={cx('grid h-7 w-12 place-items-center rounded-full transition-colors', isActive && 'bg-ledger-soft')}><Icon name={n.icon} className="size-[22px]" /></span>
+              <span className={cx('relative grid h-7 w-12 place-items-center rounded-full transition-colors', isActive && 'bg-ledger-soft')}><Icon name={n.icon} className="size-[22px]" />{n.to === '/messages' && <Dot n={unread} />}</span>
               {n.short || n.label}
             </>)}
           </NavLink>

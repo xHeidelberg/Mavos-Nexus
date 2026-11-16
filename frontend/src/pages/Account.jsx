@@ -11,7 +11,7 @@ function PinForm() {
   const { busy, error, submit } = useSubmit(async () => {
     await api.post('/auth/pin', f);
     setOk(true); setF({ password: '', pin: '' }); refresh();
-  }, 'PIN saved');
+  }, 'PIN saved', { title: 'Save this PIN?', message: 'You’ll need it to approve voids, exchanges and stock adjustments.', confirmLabel: 'Save PIN' });
   return (
     <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4">
       <p className="text-sm text-muted">{user.has_pin ? 'You have a PIN. Enter a new one to replace it.' : 'You don’t have a PIN yet. You need one to approve voids, exchanges and stock adjustments.'}</p>

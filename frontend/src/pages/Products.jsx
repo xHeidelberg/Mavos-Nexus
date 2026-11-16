@@ -68,7 +68,7 @@ function ProductForm({ product, categories, onClose, onDone }) {
     };
     if (product) await api.patch(`/products/${product.id}`, body); else await api.post('/products', body);
     onDone();
-  });
+  }, 'Product saved', { title: product ? 'Save changes to this product?' : 'Add this product?', message: product ? `${f.name} will be updated, including its variants and prices.` : `${f.name} will be added with ${variants.length} variant${variants.length > 1 ? 's' : ''}.`, confirmLabel: product ? 'Save changes' : 'Add product' });
   const valid = f.name.trim() && f.category_id && variants.every((v) => v.sku.trim() && v.cost_price !== '' && v.base_price !== '' && v.selling_price !== '' && Number(v.base_price) <= Number(v.selling_price));
 
   return (

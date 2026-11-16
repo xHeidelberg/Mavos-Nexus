@@ -101,7 +101,7 @@ function ReceiveForm({ branchId, onClose, onDone }) {
       ...(user.role === 'admin' && branchId ? { branch_id: Number(branchId) } : {}),
     });
     onDone();
-  });
+  }, 'Stock received', { title: 'Receive this stock?', message: 'It will be added to the branch’s stock count.', confirmLabel: 'Receive stock' });
   return (
     <Modal title="Receive stock" onClose={onClose}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -131,7 +131,7 @@ function AdjustForm({ row, branchId, onClose, onDone }) {
     await api.post('/stock/adjustments', { variant_id: row.variant_id, batch_id: Number(f.batch_id), qty_change: Number(f.qty_change), reason: f.reason, ...ap,
       ...(user.role === 'admin' && branchId ? { branch_id: Number(branchId) } : {}) });
     onDone();
-  });
+  }, 'Adjustment saved', { title: 'Save this stock adjustment?', message: 'This changes the stock count and is recorded under the approver’s name.', confirmLabel: 'Save adjustment', danger: true });
   return (
     <Modal title={`Adjust ${row.product}${row.label ? ` (${row.label})` : ''}`} onClose={onClose}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>

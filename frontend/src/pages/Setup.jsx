@@ -21,7 +21,7 @@ function Branches() {
   const { data, loading, error, reload } = useAsync(() => api.get('/branches'), []);
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ code: '', name: '', address: '' });
-  const { busy, error: err, submit } = useSubmit(async () => { await api.post('/branches', f); setOpen(false); setF({ code: '', name: '', address: '' }); reload(); });
+  const { busy, error: err, submit } = useSubmit(async () => { await api.post('/branches', f); setOpen(false); setF({ code: '', name: '', address: '' }); reload(); }, 'Branch added', { title: 'Add this branch?', message: `${f.name} (${f.code}) will be added.`, confirmLabel: 'Add branch' });
   return (
     <>
       <div className="mb-3"><Button onClick={() => setOpen(true)}>Add branch</Button></div>
@@ -68,7 +68,7 @@ function CategoryForm({ cat, onClose, onDone }) {
       has_variants: f.has_variants, variant_options: f.has_variants ? f.options.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : null };
     if (cat) await api.patch(`/categories/${cat.id}`, body); else await api.post('/categories', body);
     onDone();
-  });
+  }, 'Category saved', { title: cat ? 'Save changes to this category?' : 'Add this category?', message: cat ? 'This changes how its products are treated.' : `${f.name} will be added.`, confirmLabel: 'Save category' });
   return (
     <Modal title={cat ? 'Edit category' : 'Add category'} onClose={onClose}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -89,7 +89,7 @@ function Suppliers() {
   const [open, setOpen] = useState(false);
   const blank = { name: '', contact_person: '', contact_number: '', address: '' };
   const [f, setF] = useState(blank);
-  const { busy, error: err, submit } = useSubmit(async () => { await api.post('/suppliers', f); setOpen(false); setF(blank); reload(); });
+  const { busy, error: err, submit } = useSubmit(async () => { await api.post('/suppliers', f); setOpen(false); setF(blank); reload(); }, 'Supplier added', { title: 'Add this supplier?', message: `${f.name} will be added.`, confirmLabel: 'Add supplier' });
   return (
     <>
       <div className="mb-3"><Button onClick={() => setOpen(true)}>Add supplier</Button></div>
@@ -120,7 +120,7 @@ function Settings() {
     await api.put('/settings/expiry_alert_days', { value: Number(v.expiry_alert_days) });
     await api.put('/settings/loyalty_peso_per_point', { value: Number(v.loyalty_peso_per_point) });
     setOk(true); reload();
-  });
+  }, 'Settings saved', { title: 'Save these settings?', message: 'Alerts and loyalty points will use the new numbers right away.', confirmLabel: 'Save settings' });
   if (loading) return <Spinner />;
   return (
     <form className="max-w-md space-y-4" onSubmit={(e) => { e.preventDefault(); setOk(false); submit(); }}>

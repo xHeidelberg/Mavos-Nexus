@@ -66,7 +66,7 @@ function CreateTransfer({ onClose, onDone }) {
   const { busy, error, submit } = useSubmit(async () => {
     await api.post('/stock/transfers', { to_branch_id: Number(to), note: note || undefined, items: rows.filter((r) => r.variant_id).map((r) => ({ variant_id: Number(r.variant_id), qty: Number(r.qty) })) });
     onDone();
-  });
+  }, 'Transfer sent', { title: 'Send this stock?', message: 'The stock leaves the main inventory now and reaches the branch once they confirm.', confirmLabel: 'Send stock' });
   return (
     <Modal title="New transfer from main inventory" onClose={onClose} wide>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -92,7 +92,7 @@ function ReceiveTransfer({ t, onClose, onDone }) {
   const { busy, error, submit } = useSubmit(async () => {
     await api.post(`/stock/transfers/${t.id}/receive`, { items: t.items.map((i) => ({ item_id: i.id, received_qty: Number(qty[i.id]) })) });
     onDone();
-  });
+  }, 'Transfer confirmed', { title: 'Confirm what arrived?', message: 'The counts you entered are added to this branch’s stock. Differences are flagged to the admin.', confirmLabel: 'Confirm received' });
   return (
     <Modal title={`Confirm ${t.transfer_no}`} onClose={onClose}>
       <p className="mb-3 text-sm text-muted">Count what actually arrived. If a number is lower than what was sent, the transfer is flagged for the admin.</p>
