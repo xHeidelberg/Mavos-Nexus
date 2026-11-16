@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { flushQueue, queueSize } from '../lib/offlineQueue';
-import { Button, cx } from './ui';
+import { useTheme } from '../lib/theme';
+import Icon from './Icon';
+import { Modal, cx } from './ui';
 
 const NAV = [
-  { to: '/dashboard', label: 'Dashboard', roles: ['admin', 'staff'] },
-  { to: '/pos', label: 'Point of sale', roles: ['admin', 'staff', 'sales'] },
-  { to: '/sales', label: 'Sales history', roles: ['admin', 'staff', 'sales'] },
-  { to: '/stock', label: 'Stock', roles: ['admin', 'staff', 'sales'] },
-  { to: '/transfers', label: 'Transfers', roles: ['admin', 'staff'] },
-  { to: '/products', label: 'Products', roles: ['admin'] },
-  { to: '/expenses', label: 'Expenses', roles: ['admin', 'staff'] },
-  { to: '/users', label: 'Users', roles: ['admin'] },
-  { to: '/setup', label: 'Setup', roles: ['admin'] },
-  { to: '/audit', label: 'Audit log', roles: ['admin'] },
-  { to: '/account', label: 'My account', roles: ['admin', 'staff', 'sales'] },
+  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', roles: ['admin', 'staff'], main: true },
+  { to: '/pos', label: 'Point of sale', short: 'Sell', icon: 'pos', roles: ['admin', 'staff', 'sales'], main: true },
+  { to: '/sales', label: 'Sales history', short: 'Sales', icon: 'sales', roles: ['admin', 'staff', 'sales'], main: true },
+  { to: '/stock', label: 'Stock', icon: 'stock', roles: ['admin', 'staff', 'sales'], main: true },
+  { to: '/transfers', label: 'Transfers', icon: 'transfers', roles: ['admin', 'staff'] },
+  { to: '/products', label: 'Products', icon: 'products', roles: ['admin'] },
+  { to: '/expenses', label: 'Expenses', icon: 'expenses', roles: ['admin', 'staff'] },
+  { to: '/users', label: 'Users', icon: 'users', roles: ['admin'] },
+  { to: '/setup', label: 'Setup', icon: 'setup', roles: ['admin'] },
+  { to: '/audit', label: 'Audit log', icon: 'audit', roles: ['admin'] },
+  { to: '/account', label: 'My account', icon: 'account', roles: ['admin', 'staff', 'sales'] },
 ];
 
 function NetStatus() {
@@ -43,70 +45,118 @@ function NetStatus() {
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold', online ? 'bg-ledger-soft text-ledger-dark' : 'bg-caution-soft text-caution')}>
-        <span className={cx('size-2 rounded-full', online ? 'bg-ledger' : 'bg-caution')} />
+      {count > 0 && (
+        <button onClick={sync} disabled={!online || busy}
+          className="rounded-full bg-caution-soft px-3 py-1 text-xs font-semibold text-caution disabled:opacity-70">
+          {busy ? 'Sending…' : `${count} waiting to send`}
+        </button>
+      )}
+      <span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', online ? 'bg-ledger-soft text-ledger-dark' : 'bg-caution-soft text-caution')}>
+        <span className={cx('size-2 rounded-full', online ? 'bg-ledger' : 'animate-pulse bg-caution')} />
         {online ? 'Online' : 'Offline'}
       </span>
-      {count > 0 && (
-        <Button size="sm" variant="secondary" onClick={sync} disabled={!online || busy}>
-          {busy ? 'Sending…' : `${count} sale${count > 1 ? 's' : ''} waiting to send`}
-        </Button>
-      )}
     </div>
+  );
+}
+
+function ThemeButton({ className }) {
+  const [theme, toggle] = useTheme();
+  return (
+    <button onClick={toggle} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title="Light / dark"
+      className={cx('grid size-9 place-items-center rounded-lg text-muted hover:bg-line/60 hover:text-ink', className)}>
+      <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+    </button>
   );
 }
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
-  const [open, setOpen] = useState(false);
-  const items = NAV.filter((n) => n.roles.includes(user.role));
+  const loc = useLocation();
+  const [more, setMore] = useState(false);
+  useEffect(() => setMore(false), [loc.pathname]);
 
-  const links = (
-    <nav className="flex flex-col gap-0.5 p-3">
-      {items.map((n) => (
-        <NavLink key={n.to} to={n.to} onClick={() => setOpen(false)}
-          className={({ isActive }) => cx('rounded-md px-3 py-2 text-[15px] font-medium', isActive ? 'bg-ledger text-white' : 'text-ink hover:bg-line/60')}>
-          {n.label}
-        </NavLink>
-      ))}
-    </nav>
-  );
+  const items = NAV.filter((n) => n.roles.includes(user.role));
+  const tabs = items.filter((n) => n.main);
+  const rest = items.filter((n) => !n.main);
+  const signOut = async () => { await logout(); nav('/login'); };
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-white lg:flex">
-        <div className="px-5 pb-2 pt-5">
-          <p className="font-display text-xl font-bold text-ledger">Mavos Nexus</p>
-          <p className="text-sm text-muted">{user.branch?.name || 'All branches'}</p>
+      {/* Tablet: icon rail. Desktop: full sidebar. Phone: hidden (bottom tabs instead). */}
+      <aside className="hidden w-[72px] shrink-0 flex-col border-r border-line bg-surface md:flex lg:w-64">
+        <div className="flex h-16 items-center justify-center gap-3 px-4 lg:justify-start">
+          <img src="/icon.svg" alt="" className="size-9 rounded-lg" />
+          <div className="hidden min-w-0 lg:block">
+            <p className="font-display text-lg font-bold leading-tight">Mavos Nexus</p>
+            <p className="truncate text-xs text-muted">{user.branch?.name || 'All branches'}</p>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto">{links}</div>
-        <div className="border-t border-line p-4 text-sm">
-          <p className="font-semibold">{user.full_name}</p>
-          <p className="mb-2 capitalize text-muted">{user.role}</p>
-          <Button size="sm" variant="secondary" onClick={async () => { await logout(); nav('/login'); }}>Sign out</Button>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+          {items.map((n) => (
+            <NavLink key={n.to} to={n.to} title={n.label}
+              className={({ isActive }) => cx('group flex h-11 items-center justify-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors lg:justify-start',
+                isActive ? 'bg-ledger text-on-ledger shadow-sm' : 'text-ink/80 hover:bg-line/60 hover:text-ink')}>
+              <Icon name={n.icon} className="size-5 shrink-0" />
+              <span className="hidden lg:inline">{n.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="space-y-2 border-t border-line p-3">
+          <div className="hidden px-1 lg:block"><p className="truncate text-sm font-semibold">{user.full_name}</p><p className="text-xs capitalize text-muted">{user.role}</p></div>
+          <div className="flex flex-col items-center gap-1 lg:flex-row lg:justify-between">
+            <ThemeButton />
+            <button onClick={signOut} title="Sign out" className="flex h-9 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-muted hover:bg-line/60 hover:text-ink">
+              <Icon name="logout" /><span className="hidden lg:inline">Sign out</span>
+            </button>
+          </div>
         </div>
       </aside>
 
-      {open && (
-        <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setOpen(false)}>
-          <div className="absolute inset-0 bg-ink/40" />
-          <aside className="relative h-full w-64 overflow-y-auto bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 pt-5"><p className="font-display text-xl font-bold text-ledger">Mavos Nexus</p><p className="text-sm text-muted">{user.branch?.name || 'All branches'}</p></div>
-            {links}
-            <div className="p-4"><Button size="sm" variant="secondary" onClick={async () => { await logout(); nav('/login'); }}>Sign out</Button></div>
-          </aside>
-        </div>
-      )}
-
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-line bg-white px-4 py-2.5">
-          <button className="rounded-md border border-line px-3 py-1.5 text-sm font-semibold lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">Menu</button>
-          <span className="hidden text-sm text-muted lg:block">{user.full_name} · {user.role}</span>
+        <header className="safe-top flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2 md:hidden">
+            <img src="/icon.svg" alt="" className="size-7 rounded-md" />
+            <div className="min-w-0"><p className="truncate text-sm font-bold leading-tight">Mavos Nexus</p><p className="truncate text-xs leading-tight text-muted">{user.branch?.name || 'All branches'}</p></div>
+          </div>
+          <span className="hidden text-sm text-muted md:block">{user.full_name} · <span className="capitalize">{user.role}</span></span>
           <NetStatus />
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"><Outlet /></main>
+
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-24 md:pb-6"><Outlet /></main>
       </div>
+
+      {/* Phone: bottom tab bar */}
+      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface/95 backdrop-blur md:hidden" aria-label="Main">
+        {tabs.map((n) => (
+          <NavLink key={n.to} to={n.to} className={({ isActive }) => cx('flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold', isActive ? 'text-ledger' : 'text-muted')}>
+            {({ isActive }) => (<>
+              <span className={cx('grid h-7 w-12 place-items-center rounded-full transition-colors', isActive && 'bg-ledger-soft')}><Icon name={n.icon} className="size-[22px]" /></span>
+              {n.short || n.label}
+            </>)}
+          </NavLink>
+        ))}
+        <button onClick={() => setMore(true)} className="flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-muted" aria-label="More">
+          <span className="grid h-7 w-12 place-items-center rounded-full"><Icon name="more" className="size-[22px]" strokeWidth={3} /></span>More
+        </button>
+      </nav>
+
+      {more && (
+        <Modal title="Menu" onClose={() => setMore(false)}>
+          <div className="mb-4 flex items-center justify-between rounded-xl bg-paper p-3">
+            <div><p className="font-semibold">{user.full_name}</p><p className="text-sm capitalize text-muted">{user.role} · {user.branch?.name || 'All branches'}</p></div>
+            <ThemeButton className="border border-line bg-surface" />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {rest.map((n) => (
+              <NavLink key={n.to} to={n.to} className="flex flex-col items-center gap-1.5 rounded-xl border border-line p-3 text-center text-xs font-semibold active:bg-paper">
+                <Icon name={n.icon} className="size-6 text-ledger" />{n.label}
+              </NavLink>
+            ))}
+          </div>
+          <button onClick={signOut} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-line font-semibold text-danger"><Icon name="logout" />Sign out</button>
+        </Modal>
+      )}
     </div>
   );
 }

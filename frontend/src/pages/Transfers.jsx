@@ -4,6 +4,7 @@ import { useAsync } from '../hooks/useAsync';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { dateTime } from '../lib/format';
+import { confirm } from '../lib/toast';
 
 const TONE = { in_transit: 'warn', received: 'good', cancelled: 'bad' };
 const LABEL = { in_transit: 'On the way', received: 'Received', cancelled: 'Cancelled' };
@@ -16,7 +17,7 @@ export default function Transfers() {
   const [actErr, setActErr] = useState(null);
 
   const cancel = async (t) => {
-    if (!window.confirm(`Cancel ${t.transfer_no}? The stock goes back to ${t.from_name}.`)) return;
+    if (!(await confirm({ title: 'Cancel this transfer?', message: `${t.transfer_no} will be cancelled and the stock goes back to ${t.from_name}.`, confirmLabel: 'Cancel transfer', danger: true }))) return;
     try { await api.post(`/stock/transfers/${t.id}/cancel`); reload(); } catch (e) { setActErr(e); }
   };
 
@@ -28,7 +29,7 @@ export default function Transfers() {
       {loading ? <Spinner /> : !data?.length ? <Empty title="No transfers yet" hint={user.role === 'admin' ? 'Create one to send stock from the main inventory to a branch.' : 'Transfers sent to your branch will show up here.'} /> : (
         <div className="space-y-3">
           {data.map((t) => (
-            <div key={t.id} className="rounded-lg border border-line bg-white p-4">
+            <div key={t.id} className="rounded-lg border border-line bg-surface p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-semibold">{t.transfer_no} <Badge tone={TONE[t.status]}>{LABEL[t.status]}</Badge> {t.has_discrepancy && <Badge tone="warn">Quantities differ</Badge>}</p>

@@ -11,7 +11,7 @@ export default function PasswordForm({ onDone }) {
     setOk(true);
     setF({ current_password: '', new_password: '', confirm: '' });
     onDone?.();
-  });
+  }, 'Password changed');
   return (
     <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4">
       <Field label="Current password" hint="After a reset, this is the temporary password you were given."><Input type="password" autoComplete="current-password" value={f.current_password} onChange={(e) => setF({ ...f, current_password: e.target.value })} /></Field>
@@ -19,7 +19,6 @@ export default function PasswordForm({ onDone }) {
       <Field label="Repeat new password"><Input type="password" autoComplete="new-password" value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} /></Field>
       {mismatch && <p className="text-sm text-danger">The two passwords don’t match.</p>}
       <ErrorNote error={error} />
-      {ok && <p className="rounded-md bg-ledger-soft px-3 py-2 text-sm text-ledger-dark">Password changed.</p>}
       <Button type="submit" disabled={busy || mismatch || f.new_password.length < 8 || !f.current_password}>{busy ? 'Saving…' : 'Change password'}</Button>
     </form>
   );

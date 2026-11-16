@@ -22,6 +22,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('auth-sensitive', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip());
+        });
         // Global API rate limiter (e.g., 100 requests per minute per user/IP)
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(100)->by($request->user()?->id ?: $request->ip());

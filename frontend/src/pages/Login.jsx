@@ -10,12 +10,12 @@ export default function Login() {
   const { busy, error, submit } = useSubmit(async () => {
     const r = await login(f.username.trim(), f.password);
     nav(r.must_change_password ? '/change-password' : '/', { replace: true });
-  });
+  }, null);
   if (user) return <Navigate to="/" replace />;
 
   return (
     <div className="grid min-h-full place-items-center p-4">
-      <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="w-full max-w-sm rounded-xl border border-line bg-white p-6 shadow-sm">
+      <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="w-full max-w-sm rounded-xl border border-line bg-surface p-6 shadow-sm">
         <h1 className="font-display text-3xl font-bold text-ledger">Mavos Nexus</h1>
         <p className="mb-5 mt-1 text-sm text-muted">Sign in to your branch account.</p>
         <div className="space-y-4">

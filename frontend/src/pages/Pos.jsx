@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Icon from '../components/Icon';
 import { Badge, Button, ErrorNote, Field, Input, Modal, Select, Spinner, cx } from '../components/ui';
 import { ApiError, api } from '../lib/api';
 import { dateTime, peso, uuid } from '../lib/format';
@@ -26,6 +27,8 @@ export default function Pos() {
   const [receipt, setReceipt] = useState(null);
   const [showCustomer, setShowCustomer] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [bump, setBump] = useState(0);
+  const searchRef = useRef(null);
 
   const load = async () => {
     try {
@@ -36,6 +39,13 @@ export default function Pos() {
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { e.preventDefault(); searchRef.current?.focus(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const items = useMemo(() => products.flatMap((p) => p.variants.map((v) => ({ ...v, product: p }))), [products]);
 
@@ -60,7 +70,8 @@ export default function Pos() {
       (!s || `${v.product.name} ${v.label || ''} ${v.sku} ${v.product.brand || ''}`.toLowerCase().includes(s) || v.barcode === q.trim()));
   }, [items, q, cat]);
 
-  const add = (v) => setCart((c) => {
+  const add = (v) => { setBump((n) => n + 1); addLine(v); };
+  const addLine = (v) => setCart((c) => {
     const i = c.findIndex((l) => l.variant.id === v.id);
     if (i >= 0) return c.map((l, n) => (n === i ? { ...l, qty: l.qty + 1 } : l));
     return [...c, { variant: v, qty: 1, price: v.selling_price }];
@@ -117,7 +128,7 @@ export default function Pos() {
   if (loading) return <Spinner label="Loading products" />;
 
   const ticket = (
-    <div className="flex h-full flex-col rounded-lg border border-line bg-white">
+    <div className="flex h-full flex-col rounded-lg border border-line bg-surface">
       <div className="flex items-center justify-between px-4 pt-4">
         <h2 className="text-lg font-semibold">Current sale</h2>
         {cart.length > 0 && <button className="text-sm font-semibold text-danger" onClick={reset}>Clear</button>}
@@ -176,7 +187,7 @@ export default function Pos() {
         <div className="grid grid-cols-2 gap-2" role="group" aria-label="Payment method">
           {['cash', 'gcash'].map((m) => (
             <button key={m} onClick={() => setPayment(m)} aria-pressed={payment === m}
-              className={cx('h-11 rounded-md border font-semibold', payment === m ? 'border-ledger bg-ledger-soft text-ledger-dark' : 'border-line bg-white')}>
+              className={cx('h-11 rounded-md border font-semibold', payment === m ? 'border-ledger bg-ledger-soft text-ledger-dark' : 'border-line bg-surface')}>
               {m === 'cash' ? 'Cash' : 'GCash'}
             </button>
           ))}
@@ -215,37 +226,44 @@ export default function Pos() {
       <div className="flex min-h-0 flex-col">
         {stale && <p className="mb-3 rounded-md bg-caution-soft px-3 py-2 text-sm text-caution">You’re offline. Showing the last saved products; stock counts may be out of date. Sales will be sent when you’re back online.</p>}
         <div className="mb-3 flex flex-wrap gap-2">
-          <Input className="min-w-48 flex-1" placeholder="Search name, SKU, or scan a barcode" value={q} autoFocus
+          <Input ref={searchRef} className="min-w-48 flex-1" placeholder="Search or scan a barcode  (press / to focus)" value={q}
             onChange={(e) => setQ(e.target.value)} onKeyDown={onSearchKey} />
           <Select className="w-44" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
             <option value="">All categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </div>
-        <div className="grid min-h-0 flex-1 content-start gap-2.5 overflow-y-auto pb-24 sm:grid-cols-2 xl:grid-cols-3 lg:pb-0">
+        <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto pb-28 pt-1 md:grid-cols-3 md:pb-24 lg:grid-cols-2 lg:pb-1 xl:grid-cols-3 2xl:grid-cols-4">
           {visible.length === 0 && <p className="col-span-full py-10 text-center text-sm text-muted">No items match. Try another name or SKU.</p>}
-          {visible.map((v) => (
-            <button key={v.id} onClick={() => add(v)} disabled={v.on_hand <= 0 && !stale}
-              className="rounded-lg border border-line bg-white p-3 text-left transition-colors hover:border-ledger disabled:cursor-not-allowed disabled:opacity-50">
-              <p className="font-semibold leading-snug">{v.product.name}</p>
-              <p className="min-h-5 text-sm text-muted">{v.label || v.product.brand || ' '}</p>
-              <div className="mt-2 flex items-end justify-between">
-                <span className="font-display text-lg font-bold">{peso(v.selling_price)}</span>
-                {v.on_hand <= 0 ? <Badge tone="bad">Out of stock</Badge>
-                  : v.on_hand <= v.low_stock_threshold ? <Badge tone="warn">{v.on_hand} left</Badge>
-                    : <span className="text-sm text-muted">{v.on_hand} in stock</span>}
-              </div>
-            </button>
-          ))}
+          {visible.map((v) => {
+            const inCart = cart.find((l) => l.variant.id === v.id)?.qty || 0;
+            const hue = (v.product.category_id * 67) % 360;
+            return (
+              <button key={v.id} onClick={() => add(v)} disabled={v.on_hand <= 0 && !stale}
+                className={cx('relative flex flex-col rounded-xl border bg-surface p-3 text-left transition-all hover:shadow-sm active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
+                  inCart ? 'border-ledger ring-2 ring-ledger/20' : 'border-line hover:border-ledger')}>
+                {inCart > 0 && <span key={inCart} className="animate-bump absolute -right-1.5 -top-1.5 grid min-w-6 place-items-center rounded-full bg-ledger px-1.5 py-0.5 text-xs font-bold text-on-ledger shadow">{inCart}</span>}
+                <span style={{ background: `hsl(${hue} 55% 50% / .16)` }} className="mb-2 grid size-9 place-items-center rounded-lg text-sm font-bold">{v.product.name.slice(0, 1).toUpperCase()}</span>
+                <p className="font-semibold leading-snug">{v.product.name}</p>
+                <p className="min-h-5 text-sm text-muted">{v.label || v.product.brand || ' '}</p>
+                <div className="mt-2 flex flex-wrap items-end justify-between gap-1">
+                  <span className="font-display text-lg font-bold">{peso(v.selling_price)}</span>
+                  {v.on_hand <= 0 ? <Badge tone="bad">Out of stock</Badge>
+                    : v.on_hand <= v.low_stock_threshold ? <Badge tone="warn">{v.on_hand} left</Badge>
+                      : <span className="text-xs text-muted">{v.on_hand} in stock</span>}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <div className="hidden min-h-0 lg:block">{ticket}</div>
 
       {/* Phone / small tablet: floating bar opens the ticket */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white p-3 lg:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-surface/95 p-3 backdrop-blur md:bottom-0 md:left-[72px] lg:hidden">
         <Button size="lg" className="w-full" onClick={() => setCartOpen(true)}>
-          {cart.length ? `View sale · ${cart.reduce((s, l) => s + l.qty, 0)} items · ${peso(total)}` : 'Current sale (empty)'}
+          <Icon name="cart" />{cart.length ? <><span key={bump} className="animate-bump inline-block">{cart.reduce((s, l) => s + l.qty, 0)} items</span><span>· {peso(total)}</span></> : 'Current sale (empty)'}
         </Button>
       </div>
       {cartOpen && <Modal title="Current sale" onClose={() => setCartOpen(false)}><div className="-mx-5 -my-4">{ticket}</div></Modal>}

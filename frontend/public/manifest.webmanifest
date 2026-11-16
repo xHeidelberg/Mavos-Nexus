@@ -1,0 +1,9 @@
+{
+  "name": "Mavos Nexus",
+  "short_name": "Mavos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f5f7",
+  "theme_color": "#14674a",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

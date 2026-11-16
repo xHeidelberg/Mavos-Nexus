@@ -19,7 +19,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://app.yourdomain.com',
+        'http://192.168.1.2:5173',
+        'http://localhost:5173/'
+        // Include local network/staging URLs strictly for development/testing environments
+    ],
 
     'allowed_origins_patterns' => [],
 

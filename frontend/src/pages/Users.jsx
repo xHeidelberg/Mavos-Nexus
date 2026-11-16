@@ -3,6 +3,7 @@ import { Badge, Button, ErrorNote, Field, Input, Modal, PageHeader, Select, Spin
 import { useAsync } from '../hooks/useAsync';
 import { api } from '../lib/api';
 import { dateTime } from '../lib/format';
+import { confirm, toast } from '../lib/toast';
 
 export default function Users() {
   const { data, loading, error, reload } = useAsync(() => api.get('/users'), []);
@@ -12,10 +13,10 @@ export default function Users() {
   const [actErr, setActErr] = useState(null);
 
   const reset = async (u) => {
-    if (!window.confirm(`Reset the password for ${u.full_name}? They must choose a new one at next sign-in.`)) return;
+    if (!(await confirm({ title: 'Reset password?', message: `${u.full_name} will get a temporary password and must choose a new one at next sign-in.`, confirmLabel: 'Reset password', danger: true }))) return;
     try { const r = await api.post(`/users/${u.id}/reset-password`); setSecret({ who: u.full_name, password: r.temporary_password }); reload(); } catch (e) { setActErr(e); }
   };
-  const toggle = async (u) => { try { await api.patch(`/users/${u.id}`, { is_active: !u.is_active }); reload(); } catch (e) { setActErr(e); } };
+  const toggle = async (u) => { try { await api.patch(`/users/${u.id}`, { is_active: !u.is_active }); toast.success(u.is_active ? 'User disabled' : 'User enabled'); reload(); } catch (e) { setActErr(e); } };
   const branchName = (id) => branches?.find((b) => b.id === id)?.name || '—';
   const name = (id) => data?.find((u) => u.id === id)?.full_name || '—';
 

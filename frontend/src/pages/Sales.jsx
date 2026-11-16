@@ -125,7 +125,7 @@ function SaleDetail({ id, onClose, onChanged }) {
 function VoidForm({ sale, onCancel, onDone }) {
   const [reason, setReason] = useState('');
   const [ap, setAp] = useState(emptyApproval);
-  const { busy, error, submit } = useSubmit(async () => { await api.post(`/sales/${sale.id}/void`, { reason, ...ap }); onDone(); });
+  const { busy, error, submit } = useSubmit(async () => { await api.post(`/sales/${sale.id}/void`, { reason, ...ap }); onDone(); }, 'Sale voided');
   return (
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>
       <p className="text-sm">Voiding returns the items to stock. Total {peso(sale.total)}.</p>

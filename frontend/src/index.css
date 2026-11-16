@@ -7,38 +7,101 @@
   --color-ink: #1b2430;
   --color-muted: #5d6877;
   --color-paper: #f3f5f7;
+  --color-surface: #ffffff;
   --color-line: #d8dee6;
   --color-ledger: #14674a;
   --color-ledger-dark: #0e4d37;
   --color-ledger-soft: #e3f1ea;
+  --color-on-ledger: #ffffff;
   --color-caution: #8a5600;
   --color-caution-soft: #fbf0d9;
   --color-danger: #b42318;
   --color-danger-soft: #fde8e6;
+  --color-on-danger: #ffffff;
+
+  --shadow-pop: 0 10px 30px -8px rgb(15 23 42 / 0.25);
+}
+
+/* Dark theme: same names, new values. Utilities read these variables, so everything switches. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink: #e7ebf1;
+  --color-muted: #9aa5b5;
+  --color-paper: #0e1318;
+  --color-surface: #161c23;
+  --color-line: #2a333e;
+  --color-ledger: #3cc48f;
+  --color-ledger-dark: #7be3b9;
+  --color-ledger-soft: #12382b;
+  --color-on-ledger: #04251a;
+  --color-caution: #f0b84a;
+  --color-caution-soft: #3a2c0f;
+  --color-danger: #ff8f84;
+  --color-danger-soft: #3e1b18;
+  --color-on-danger: #3a0d09;
+  --shadow-pop: 0 10px 30px -8px rgb(0 0 0 / 0.6);
 }
 
 html, body, #root { height: 100%; }
+#root { height: 100dvh; }
 body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
 button, input, select, textarea { font: inherit; }
 input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+button:not(:disabled), [role=tab] { touch-action: manipulation; }
+::selection { background: color-mix(in srgb, var(--color-ledger) 30%, transparent); }
 
 /* Receipt-style rule used on the POS ticket */
 .rule { border-top: 1.5px dashed var(--color-line); }
 
+/* ---------- Motion (only in response to something the person did) ---------- */
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sheet-in { from { transform: translateY(32px); opacity: .5 } to { transform: none; opacity: 1 } }
+@keyframes pop-in { from { transform: scale(.96); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes toast-in { from { transform: translateY(-8px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes bump { 0% { transform: scale(1) } 40% { transform: scale(1.25) } 100% { transform: scale(1) } }
+@keyframes shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+.animate-fade { animation: fade-in .15s ease-out; }
+.animate-sheet { animation: sheet-in .24s cubic-bezier(.2,.8,.2,1); }
+.animate-toast { animation: toast-in .2s ease-out; }
+.animate-bump { animation: bump .28s ease-out; }
+@media (min-width: 640px) { .animate-sheet { animation: pop-in .18s ease-out; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--color-line) 30%, color-mix(in srgb, var(--color-line) 35%, transparent) 50%, var(--color-line) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* ---------- Tables become stacked cards on phones ---------- */
+@media (max-width: 639px) {
+  .rtable thead { display: none; }
+  .rtable, .rtable tbody { display: block; }
+  .rtable tr { display: block; padding: .6rem .85rem; border-bottom: 1px solid var(--color-line); }
+  .rtable tr:last-child { border-bottom: 0; }
+  .rtable td { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 0 !important; padding: .2rem 0 !important; text-align: right; }
+  .rtable td[data-label]::before { content: attr(data-label); color: var(--color-muted); font-weight: 600; text-align: left; flex-shrink: 0; }
+  .rtable td:not([data-label]) { justify-content: flex-end; }
+  .rtable td:empty { display: none; }
+}
+
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-top { padding-top: env(safe-area-inset-top); }
+
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 /* Printing a receipt prints only the receipt */
 @media print {
   body * { visibility: hidden; }
   #receipt, #receipt * { visibility: visible; }
-  #receipt { position: absolute; left: 0; top: 0; width: 80mm; padding: 4mm; }
+  #receipt { position: absolute; left: 0; top: 0; width: 80mm; padding: 4mm; color: #000; }
 }
