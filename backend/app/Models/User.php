@@ -22,6 +22,7 @@ class User extends Authenticatable
             'locked_until' => 'datetime',
             'pin_locked_until' => 'datetime',
             'last_login_at' => 'datetime',
+            'last_seen_at' => 'datetime',
         ];
     }
 

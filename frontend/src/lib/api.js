@@ -1,10 +1,17 @@
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const GET_CACHE_TTL = 15000;
+const getCache = new Map();
+const pendingGets = new Map();
+let cacheGeneration = 0;
 
 let token = localStorage.getItem('mavos_token');
 let handlers = { authLost: () => {}, passwordRequired: () => {} };
 
 export const setToken = (t) => {
   token = t;
+  cacheGeneration++;
+  getCache.clear();
+  pendingGets.clear();
   if (t) localStorage.setItem('mavos_token', t);
   else localStorage.removeItem('mavos_token');
 };
@@ -29,9 +36,32 @@ function qs(query) {
 }
 
 async function request(method, path, { body, query, raw } = {}) {
+  const url = BASE + path + qs(query);
+  const cacheable = method === 'GET' && !raw && !['/messages/thread', '/messages/contacts', '/messages/unread'].includes(path);
+  const cacheKey = cacheable ? url : null;
+  const generation = cacheGeneration;
+  if (cacheKey) {
+    const cached = getCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    if (pendingGets.has(cacheKey)) return pendingGets.get(cacheKey);
+  }
+
+  const operation = performRequest(method, url, body, raw);
+  if (cacheKey) pendingGets.set(cacheKey, operation);
+  try {
+    const data = await operation;
+    if (cacheKey && generation === cacheGeneration) getCache.set(cacheKey, { data, expiresAt: Date.now() + GET_CACHE_TTL });
+    else if (method !== 'GET') getCache.clear();
+    return data;
+  } finally {
+    if (cacheKey && pendingGets.get(cacheKey) === operation) pendingGets.delete(cacheKey);
+  }
+}
+
+async function performRequest(method, url, body, raw) {
   let res;
   try {
-    res = await fetch(BASE + path + qs(query), {
+    res = await fetch(url, {
       method,
       headers: {
         Accept: 'application/json',

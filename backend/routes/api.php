@@ -82,8 +82,10 @@ Route::middleware(['auth:sanctum', 'password.changed'])->group(function () {
     // Messages (everyone; scoping is enforced in the controller)
     Route::get('messages/contacts', [MessageController::class, 'contacts']);
     Route::get('messages/thread', [MessageController::class, 'thread']);
+    Route::post('messages/read', [MessageController::class, 'read']);
     Route::get('messages/unread', [MessageController::class, 'unread']);
     Route::get('messages/search', [MessageController::class, 'search']);
+    Route::post('messages/presence', [MessageController::class, 'presence'])->middleware('throttle:30,1');
     Route::post('messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1');
 
     // Payroll (admin only: salaries and government IDs are sensitive)

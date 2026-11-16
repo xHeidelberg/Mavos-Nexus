@@ -42,9 +42,13 @@ class ProductController extends Controller
         return $products;
     }
 
-    public function show(Product $product)
+    public function show(Request $r, Product $product)
     {
-        return $product->load(['category', 'variants']);
+        $product->load(['category', 'variants']);
+        if ($r->user()->role === 'sales') {
+            $product->variants->each(fn ($variant) => $variant->makeHidden('cost_price'));
+        }
+        return $product;
     }
 
     private function rules(bool $create): array

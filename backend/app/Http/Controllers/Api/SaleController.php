@@ -64,6 +64,11 @@ class SaleController extends Controller
         return $this->filtered($r)->with(['branch:id,name', 'cashier:id,full_name'])->paginate(min((int) $r->query('per_page', 50), 200));
     }
 
+    private function csvText(string $value): string
+    {
+        return preg_match('/^[\x00-\x20\xEF\xBB\xBF]*[=+\-@]/', $value) ? "'".$value : $value;
+    }
+
     public function export(Request $r)
     {
         $q = $this->filtered($r)->with(['branch:id,name', 'cashier:id,full_name'])->limit(50000);
@@ -72,7 +77,7 @@ class SaleController extends Controller
             $out = fopen('php://output', 'w');
             fputcsv($out, ['Receipt No', 'Date/Time', 'Branch', 'Cashier', 'Payment', 'GCash Ref', 'Subtotal', 'Discount', 'Total', 'Status', 'Needs Review']);
             foreach ($q->cursor() as $s) {
-                fputcsv($out, [$s->receipt_no, $s->sold_at, $s->branch->name, $s->cashier->full_name, $s->payment_method, $s->gcash_ref,
+                fputcsv($out, [$this->csvText((string) $s->receipt_no), $s->sold_at, $this->csvText((string) $s->branch->name), $this->csvText((string) $s->cashier->full_name), $s->payment_method, $this->csvText((string) $s->gcash_ref),
                     $s->subtotal, $s->discount_total, $s->total, $s->status, $s->needs_review ? 'yes' : 'no']);
             }
             fclose($out);

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\AuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -55,6 +56,12 @@ class AuthController extends Controller
         if (!Hash::check($d['current_password'], $u->password)) throw new ApiException('Current password is incorrect', 401);
         if ($d['current_password'] === $d['new_password']) throw new ApiException('New password must be different', 422);
         $u->forceFill(['password' => $d['new_password'], 'must_change_password' => false])->save();
+        $currentToken = $u->currentAccessToken();
+        if ($currentToken instanceof PersonalAccessToken) {
+            $u->tokens()->where('id', '!=', $currentToken->getKey())->delete();
+        } else {
+            $u->tokens()->delete();
+        }
         AuditService::log($u, 'PASSWORD_CHANGED', 'user', $u->id);
         return ['ok' => true];
     }

@@ -96,6 +96,18 @@ export default function Layout() {
   const [more, setMore] = useState(false);
   const unread = useUnread();
   useEffect(() => setMore(false), [loc.pathname]);
+  useEffect(() => {
+    const heartbeat = () => {
+      if (document.visibilityState === 'visible') api.post('/messages/presence').catch(() => {});
+    };
+    heartbeat();
+    const interval = setInterval(heartbeat, 30000);
+    document.addEventListener('visibilitychange', heartbeat);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', heartbeat);
+    };
+  }, []);
 
   const items = NAV.filter((n) => n.roles.includes(user.role));
   const tabs = items.filter((n) => n.main);

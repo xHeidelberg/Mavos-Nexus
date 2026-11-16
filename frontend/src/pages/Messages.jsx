@@ -4,6 +4,7 @@ import { Badge, Empty, ErrorNote, Input, Segmented, Select, Spinner, cx } from '
 import { useAsync } from '../hooks/useAsync';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { uuid } from '../lib/format';
 
 const SORTS = [{ value: 'recent', label: 'Recent' }, { value: 'name', label: 'Name' }, { value: 'branch', label: 'Branch' }];
 const keyOf = (t) => `${t.type}:${t.id}`;
@@ -13,6 +14,11 @@ function when(ts) {
   const d = new Date(ts.replace(' ', 'T'));
   const same = d.toDateString() === new Date().toDateString();
   return same ? d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+}
+function presenceLabel(online, lastSeen) {
+  if (online) return 'Online';
+  if (!lastSeen) return 'Offline';
+  return `Last seen ${when(lastSeen)}`;
 }
 const pingUnread = () => window.dispatchEvent(new Event('mavos-unread-refresh'));
 
@@ -39,11 +45,14 @@ export default function Messages() {
     return [...m].map(([heading, items]) => ({ heading, items }));
   }, [people, sort]);
 
-  const Row = ({ t, title, sub, preview, at, unread }) => {
+  const Row = ({ t, title, sub, preview, at, unread, online }) => {
     const on = active && keyOf(active) === keyOf(t);
     return (
       <button onClick={() => setActive(t)} className={cx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors', on ? 'bg-ledger-soft' : 'hover:bg-paper')}>
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-line/70 font-display font-bold">{title.slice(0, 1).toUpperCase()}</span>
+        <span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-line/70 font-display font-bold">
+          {title.slice(0, 1).toUpperCase()}
+          {online && <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-surface bg-ledger" aria-label="Online" />}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center justify-between gap-2"><b className="truncate">{title}</b><span className="shrink-0 text-xs text-muted">{when(at)}</span></span>
           <span className="flex items-center justify-between gap-2">
@@ -82,7 +91,7 @@ export default function Messages() {
               {grouped.map((g) => (
                 <div key={g.heading || 'all'}>
                   {g.heading && <p className="sticky top-0 bg-surface/95 px-3 py-1 text-xs font-semibold text-ledger">{g.heading}</p>}
-                  {g.items.map((p) => <Row key={p.id} t={{ type: 'direct', id: p.id, name: p.full_name }} title={p.full_name} sub={`${p.role === 'admin' ? 'Admin' : p.role === 'staff' ? 'Staff' : 'Sales'}${p.branch_name ? ` · ${p.branch_name}` : ''}`} preview={p.last_message} at={p.last_at} unread={p.unread} />)}
+                  {g.items.map((p) => <Row key={p.id} t={{ type: 'direct', id: p.id, name: p.full_name }} title={p.full_name} sub={`${p.role === 'admin' ? 'Admin' : p.role === 'staff' ? 'Staff' : 'Sales'}${p.branch_name ? ` · ${p.branch_name}` : ''}`} preview={p.last_message} at={p.last_at} unread={p.unread} online={p.online} />)}
                 </div>
               ))}
 
@@ -118,19 +127,85 @@ function Thread({ target, onBack, onSent }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState(null);
+  const [pendingMessages, setPendingMessages] = useState([]);
+  const pendingRef = useRef([]);
+  const inFlight = useRef(new Set());
+  const readThrough = useRef(0);
   const endRef = useRef(null);
   const messages = thread.data?.messages || [];
+  const displayMessages = [...messages, ...pendingMessages].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const lastMineId = [...displayMessages].reverse().find((m) => m.sender_id === user.id)?.id;
 
   useEffect(() => { pingUnread(); }, [thread.data]);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [messages.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [displayMessages.length]);
 
-  // Chat messages are sent straight away (no confirmation dialog): confirming every message would make chat unusable.
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    const messageId = Number(lastMessage?.id);
+    if (!messageId || messageId <= readThrough.current || document.visibilityState !== 'visible') return;
+    api.post('/messages/read', { ...params, message_id: messageId })
+      .then(() => { readThrough.current = messageId; pingUnread(); })
+      .catch(() => {});
+  }, [thread.data, target.type, target.id]);
+
+  const transmit = async (local) => {
+    if (inFlight.current.has(local.id)) return;
+    inFlight.current.add(local.id);
+    setPendingMessages((current) => current.map((m) => m.id === local.id ? { ...m, status: 'sending' } : m));
+    try {
+      const saved = await api.post('/messages/send', { ...params, body: local.body, client_uuid: local.client_uuid });
+      setPendingMessages((current) => current.filter((m) => m.id !== local.id));
+      thread.setData((current) => {
+        const existing = current?.messages || [];
+        return {
+          ...(current || {}),
+          messages: existing.some((m) => m.id === saved.id) ? existing : [...existing, { ...saved, delivered: false, seen: false }],
+        };
+      });
+      setErr(null);
+      onSent?.();
+      pingUnread();
+    } catch (e) {
+      setPendingMessages((current) => current.map((m) => m.id === local.id
+        ? { ...m, status: e.isNetwork ? 'queued' : 'failed' }
+        : m));
+      if (!e.isNetwork) setErr(e);
+    } finally {
+      inFlight.current.delete(local.id);
+    }
+  };
+
+  useEffect(() => {
+    const retryQueued = () => {
+      if (navigator.onLine) pendingRef.current.filter((m) => m.status === 'queued').forEach(transmit);
+    };
+    window.addEventListener('online', retryQueued);
+    const interval = setInterval(retryQueued, 5000);
+    return () => {
+      window.removeEventListener('online', retryQueued);
+      clearInterval(interval);
+    };
+  }, [params.type, params.user_id, params.branch_id]);
+
+  useEffect(() => { pendingRef.current = pendingMessages; }, [pendingMessages]);
+
   const send = async () => {
     const body = text.trim();
     if (!body || sending) return;
-    setSending(true); setErr(null);
-    try { await api.post('/messages/send', { ...params, body }); setText(''); await thread.reload(); onSent?.(); pingUnread(); }
-    catch (e) { setErr(e); } finally { setSending(false); }
+    setSending(true);
+    setErr(null);
+    const local = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      client_uuid: uuid(),
+      sender_id: user.id,
+      body,
+      created_at: new Date().toISOString(),
+      status: 'queued',
+    };
+    setPendingMessages((current) => [...current, local]);
+    setText('');
+    setSending(false);
+    if (navigator.onLine) transmit(local);
   };
 
   let lastDay = '';
@@ -139,15 +214,16 @@ function Thread({ target, onBack, onSent }) {
       <header className="flex items-center gap-2 border-b border-line px-3 py-2.5">
         <button onClick={onBack} aria-label="Back" className="grid size-9 place-items-center rounded-lg hover:bg-paper lg:hidden"><Icon name="back" /></button>
         <span className="grid size-9 place-items-center rounded-full bg-line/70 font-display font-bold">{(thread.data?.title || target.name).slice(0, 1).toUpperCase()}</span>
-        <div className="min-w-0"><p className="truncate font-semibold">{thread.data?.title || target.name}</p><p className="text-xs text-muted">{target.type === 'branch' ? 'Branch room' : 'Direct message'}</p></div>
+        <div className="min-w-0"><p className="truncate font-semibold">{thread.data?.title || target.name}</p><p className="text-xs text-muted">{target.type === 'branch' ? 'Branch room' : presenceLabel(thread.data?.online, thread.data?.last_seen_at)}</p></div>
       </header>
 
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-paper/60 p-3">
         {thread.loading && !thread.data && <Spinner />}
         <ErrorNote error={thread.error} />
-        {thread.data && messages.length === 0 && <p className="py-10 text-center text-sm text-muted">No messages yet. Say hello.</p>}
-        {messages.map((m) => {
+        {thread.data && displayMessages.length === 0 && <p className="py-10 text-center text-sm text-muted">No messages yet. Say hello.</p>}
+        {displayMessages.map((m) => {
           const mine = m.sender_id === user.id;
+          const local = typeof m.id === 'string';
           const day = new Date(m.created_at).toDateString();
           const head = day !== lastDay ? new Date(m.created_at).toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' }) : null;
           lastDay = day;
@@ -159,6 +235,12 @@ function Thread({ target, onBack, onSent }) {
                   {!mine && target.type === 'branch' && <p className="mb-0.5 text-xs font-semibold text-ledger">{m.sender_name}</p>}
                   <p className="whitespace-pre-wrap break-words">{m.body}</p>
                   <p className={cx('mt-0.5 text-right text-[11px]', mine ? 'text-on-ledger/70' : 'text-muted')}>{new Date(m.created_at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</p>
+                  {mine && m.id === lastMineId && (
+                    <p className="text-right text-[10px] text-on-ledger/70">
+                      {local ? m.status === 'queued' ? 'Queued' : m.status === 'sending' ? 'Sending…' : 'Not sent' : m.seen ? 'Seen' : m.delivered ? 'Delivered' : 'Sent'}
+                      {local && m.status === 'failed' && <button className="ml-1 underline" onClick={() => transmit(m)}>Retry</button>}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

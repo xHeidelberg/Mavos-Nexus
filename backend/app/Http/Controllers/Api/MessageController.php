@@ -29,6 +29,14 @@ class MessageController extends Controller
         return $me->role === 'admin' || (int) $me->branch_id === $branchId;
     }
 
+    private function userPresence(User $user): array
+    {
+        return [
+            'online' => $user->last_seen_at?->greaterThan(now()->subMinutes(2)) ?? false,
+            'last_seen_at' => $user->last_seen_at?->toDateTimeString(),
+        ];
+    }
+
     private function accessibleIds(User $me)
     {
         return Conversation::where(fn ($q) => $q->where('type', 'direct')->where(fn ($w) => $w->where('user_low', $me->id)->orWhere('user_high', $me->id)))
@@ -63,13 +71,13 @@ class MessageController extends Controller
             [$lo, $hi] = $me->id < $other->id ? [$me->id, $other->id] : [$other->id, $me->id];
             $key = ['type' => 'direct', 'user_low' => $lo, 'user_high' => $hi];
             $conv = $create ? Conversation::firstOrCreate($key) : Conversation::where($key)->first();
-            return [$conv, $other->full_name];
+            return [$conv, $other->full_name, $other];
         }
         if (!$this->canBranch($me, (int) $branchId)) throw new ApiException('You can only open your own branch’s room.', 403);
         $branch = Branch::findOrFail($branchId);
         $key = ['type' => 'branch', 'branch_id' => $branch->id];
         $conv = $create ? Conversation::firstOrCreate($key) : Conversation::where($key)->first();
-        return [$conv, $branch->name . ' team'];
+        return [$conv, $branch->name . ' team', null];
     }
 
     private function target(Request $r): array
@@ -84,8 +92,25 @@ class MessageController extends Controller
 
     private function markRead(User $me, int $convId, int $messageId): void
     {
+        $lastRead = (int) (DB::table('conversation_reads')->where('conversation_id', $convId)
+            ->where('user_id', $me->id)->value('last_read_message_id') ?? 0);
+        if ($messageId <= $lastRead) return;
+
         DB::table('conversation_reads')->upsert([['conversation_id' => $convId, 'user_id' => $me->id, 'last_read_message_id' => $messageId]],
             ['conversation_id', 'user_id'], ['last_read_message_id']);
+    }
+
+    private function markDelivered(User $me, int $convId, int $messageId): void
+    {
+        $lastDelivered = (int) (DB::table('conversation_deliveries')->where('conversation_id', $convId)
+            ->where('user_id', $me->id)->value('last_delivered_message_id') ?? 0);
+        if ($messageId <= $lastDelivered) return;
+
+        DB::table('conversation_deliveries')->upsert(
+            [['conversation_id' => $convId, 'user_id' => $me->id, 'last_delivered_message_id' => $messageId]],
+            ['conversation_id', 'user_id'],
+            ['last_delivered_message_id']
+        );
     }
 
     private function shape(Message $m): array
@@ -121,6 +146,7 @@ class MessageController extends Controller
             $m = $c ? $last->get($c->id) : null;
             return ['id' => $u->id, 'full_name' => $u->full_name, 'username' => $u->username, 'role' => $u->role,
                 'branch_id' => $u->branch_id, 'branch_name' => $u->branch?->name,
+                ...$this->userPresence($u),
                 'last_message' => $m?->body, 'last_at' => $m?->created_at?->format('Y-m-d H:i:s'), 'unread' => (int) ($c ? ($unread[$c->id] ?? 0) : 0)];
         });
 
@@ -150,27 +176,68 @@ class MessageController extends Controller
     {
         $me = $r->user();
         [$type, $userId, $branchId] = $this->target($r);
-        [$conv, $title] = $this->find($me, $type, $userId, $branchId, false);
-        if (!$conv) return ['conversation_id' => null, 'title' => $title, 'messages' => []];
+        [$conv, $title, $other] = $this->find($me, $type, $userId, $branchId, false);
+        $status = $type === 'direct' && $other ? $this->userPresence($other) : [];
+        if (!$conv) return ['conversation_id' => null, 'title' => $title, 'messages' => [], ...$status];
 
         $messages = Message::with('sender:id,full_name')->where('conversation_id', $conv->id)->orderByDesc('id')->limit(150)->get()->reverse()->values();
-        if ($messages->isNotEmpty()) $this->markRead($me, $conv->id, $messages->last()->id);
-        return ['conversation_id' => $conv->id, 'title' => $title, 'messages' => $messages->map(fn ($m) => $this->shape($m))];
+        if ($messages->isNotEmpty()) $this->markDelivered($me, $conv->id, $messages->last()->id);
+        $otherDeliveredId = $type === 'direct'
+            ? (int) (DB::table('conversation_deliveries')->where('conversation_id', $conv->id)->where('user_id', $other->id)->value('last_delivered_message_id') ?? 0)
+            : 0;
+        $otherReadId = $type === 'direct'
+            ? (int) (DB::table('conversation_reads')->where('conversation_id', $conv->id)->where('user_id', $other->id)->value('last_read_message_id') ?? 0)
+            : 0;
+        return ['conversation_id' => $conv->id, 'title' => $title, 'messages' => $messages->map(
+            fn ($m) => [
+                ...$this->shape($m),
+                'delivered' => $type === 'direct' && (int) $m->sender_id === (int) $me->id && (int) $m->id <= $otherDeliveredId,
+                'seen' => $type === 'direct' && (int) $m->sender_id === (int) $me->id && (int) $m->id <= $otherReadId,
+            ]
+        ), ...$status];
+    }
+
+    public function read(Request $r)
+    {
+        $me = $r->user();
+        [$type, $userId, $branchId] = $this->target($r);
+        $d = $r->validate(['message_id' => 'required|integer|min:1']);
+        [$conv] = $this->find($me, $type, $userId, $branchId, false);
+        if (!$conv || !Message::where('conversation_id', $conv->id)->whereKey($d['message_id'])->exists()) {
+            throw new ApiException('Message not found in this conversation.', 404);
+        }
+
+        $this->markRead($me, $conv->id, (int) $d['message_id']);
+        return response()->noContent();
+    }
+
+    public function presence(Request $r)
+    {
+        $now = now();
+        DB::table('users')->where('id', $r->user()->id)
+            ->where(fn ($q) => $q->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $now->copy()->subSeconds(30)))
+            ->update(['last_seen_at' => $now]);
+        return response()->noContent();
     }
 
     public function send(Request $r)
     {
         $me = $r->user();
         [$type, $userId, $branchId] = $this->target($r);
-        $d = $r->validate(['body' => 'required|string|max:2000']);
+        $d = $r->validate(['body' => 'required|string|max:2000', 'client_uuid' => 'nullable|uuid']);
         $body = trim($d['body']);
         if ($body === '') throw new ApiException('Type a message first.', 422);
 
         [$conv] = $this->find($me, $type, $userId, $branchId, true);
-        $m = Message::create(['conversation_id' => $conv->id, 'sender_id' => $me->id, 'body' => $body]);
+        $m = !empty($d['client_uuid'])
+            ? Message::firstOrCreate(['client_uuid' => $d['client_uuid']], ['conversation_id' => $conv->id, 'sender_id' => $me->id, 'body' => $body])
+            : Message::create(['conversation_id' => $conv->id, 'sender_id' => $me->id, 'body' => $body]);
+        if ((int) $m->sender_id !== (int) $me->id || (int) $m->conversation_id !== (int) $conv->id || $m->body !== $body) {
+            throw new ApiException('This message could not be safely retried.', 409);
+        }
         $conv->update(['last_message_at' => now()]);
         $this->markRead($me, $conv->id, $m->id);
-        return response()->json($this->shape($m->load('sender:id,full_name')), 201);
+        return response()->json($this->shape($m->load('sender:id,full_name')), $m->wasRecentlyCreated ? 201 : 200);
     }
 
     public function unread(Request $r)
