@@ -21,12 +21,14 @@ return [
 
     'allowed_origins' => [
         'https://app.yourdomain.com',
-        'http://192.168.1.2:5173',
-        'http://localhost:5173/'
-        // Include local network/staging URLs strictly for development/testing environments
+        'http://localhost:5173',
+        'http://192.168.1.3:5173'
     ],
 
-    'allowed_origins_patterns' => [],
+    // Use regex patterns to match dynamic local IPs in the 192.168.1.0/24 subnet on port 5173
+    'allowed_origins_patterns' => [
+        '/^http:\/\/192\.168\.1\.\d{1,3}:5173\/?$/',
+    ],
 
     'allowed_headers' => ['*'],
 

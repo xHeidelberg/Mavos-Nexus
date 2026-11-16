@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
+use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\MiscController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
@@ -75,6 +78,30 @@ Route::middleware(['auth:sanctum', 'password.changed'])->group(function () {
     Route::get('sales/{id}', [SaleController::class, 'show'])->whereNumber('id');
     Route::post('sales/{id}/void', [SaleController::class, 'void'])->whereNumber('id');
     Route::post('sales/{id}/exchange', [SaleController::class, 'exchange'])->whereNumber('id');
+
+    // Messages (everyone; scoping is enforced in the controller)
+    Route::get('messages/contacts', [MessageController::class, 'contacts']);
+    Route::get('messages/thread', [MessageController::class, 'thread']);
+    Route::get('messages/unread', [MessageController::class, 'unread']);
+    Route::get('messages/search', [MessageController::class, 'search']);
+    Route::post('messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1');
+
+    // Payroll (admin only: salaries and government IDs are sensitive)
+    Route::middleware('role:admin')->prefix('payroll')->group(function () {
+        Route::get('employees', [EmployeeController::class, 'index']);
+        Route::post('employees', [EmployeeController::class, 'store']);
+        Route::patch('employees/{employee}', [EmployeeController::class, 'update']);
+        Route::get('rates', [PayrollController::class, 'rates']);
+        Route::put('rates', [PayrollController::class, 'updateRates']);
+        Route::get('runs', [PayrollController::class, 'runs']);
+        Route::post('runs', [PayrollController::class, 'createRun']);
+        Route::get('runs/{id}', [PayrollController::class, 'show'])->whereNumber('id');
+        Route::delete('runs/{id}', [PayrollController::class, 'destroyRun'])->whereNumber('id');
+        Route::post('runs/{id}/recalculate', [PayrollController::class, 'recalculate'])->whereNumber('id');
+        Route::post('runs/{id}/finalize', [PayrollController::class, 'finalize'])->whereNumber('id');
+        Route::patch('payslips/{id}', [PayrollController::class, 'updatePayslip'])->whereNumber('id');
+        Route::post('payslips/{id}/pay', [PayrollController::class, 'pay'])->whereNumber('id');
+    });
 
     // Reports, expenses, audit, settings
     Route::middleware('role:admin,staff')->group(function () {

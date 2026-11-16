@@ -5,11 +5,11 @@ React 18, Vite, React Router and Tailwind CSS v4. It talks to the Laravel API on
 ## Run it
 ```bash
 cd frontend
-cp .env.example .env        # VITE_API_URL=http://localhost:8000/api
+cp .env.example .env        # VITE_API_URL=/api (uses the Vite proxy below)
 npm install
-npm run dev                 # http://localhost:5173
+npm run dev                 # http://localhost:5173; accessible on your LAN
 ```
-Keep `php artisan serve` running in `backend/`. Sign in as `admin` with the temporary password from the seeder.
+Keep `php artisan serve` running in `backend/`. The Vite `/api` proxy forwards requests to `http://127.0.0.1:8000`, so the same setup works when opening the frontend from another device on your LAN. Sign in as `admin` with the temporary password from the seeder.
 
 ## Screens
 | Screen | Who | What it does |
